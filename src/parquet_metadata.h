@@ -1,0 +1,4 @@
+#ifndef PARQUET_METADATA_H
+#define PARQUET_METADATA_H
+
+#endif // PARQUET_METADATA_H
