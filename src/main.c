@@ -1,10 +1,12 @@
 #include <stdio.h>
+
+#include "parquet_metadata.h"
 #include "parquet_reader.h"
 
 int main(void)
 {
     int argc = 2;
-    char* argv[] = {"c_parquet", "../examples/sample.parquet"};
+    char* argv[] = {"c_parquet", "../examples/simple.parquet"};
 
     printf("C Parquet Reader v0.1\n");
 
@@ -17,6 +19,10 @@ int main(void)
     printf("Reading Parquet file: %s\n", argv[1]);
     ParquetFile* pf = parquet_open(argv[1]);
     parquet_print_basic_info(pf);
+
+    BinaryMetadata* meta = parse_binary_metadata(pf);
+
+
     parquet_close(pf);
 
     return 0;

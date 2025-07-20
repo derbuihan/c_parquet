@@ -49,7 +49,7 @@ ParquetFile* parquet_open(const char* filename)
 
     // read footer data
     pf->footer_data = malloc(pf->footer_length);
-    long footer_start = pf->file_size - pf->footer_length;
+    long footer_start = pf->file_size - 8 - pf->footer_length;
     fseek(file, footer_start, SEEK_SET);
     fread(pf->footer_data, 1, pf->footer_length, pf->file);
 
