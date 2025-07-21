@@ -28,6 +28,14 @@ typedef struct
     uint8_t* metadata;
 } parquet_footer_t;
 
+typedef struct
+{
+    int32_t version;
+    int64_t num_rows;
+    char* created_by;
+    size_t created_by_length;
+} parquet_metadata_t;
+
 int parquet_open(parquet_reader_t* reader, const char* filename);
 int parquet_validate_magic(parquet_reader_t* reader);
 int parquet_close(parquet_reader_t* reader);

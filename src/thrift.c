@@ -1,6 +1,7 @@
 #include "thrift.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 
 int thrift_reader_init(thrift_reader_t* reader, uint8_t* data, size_t size)
@@ -8,6 +9,37 @@ int thrift_reader_init(thrift_reader_t* reader, uint8_t* data, size_t size)
     reader->data = data;
     reader->size = size;
     reader->position = 0;
+    return 0;
+}
+
+int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* header, int16_t* last_field_id)
+{
+    if (reader->position >= reader->size)
+        return -1;
+
+    uint8_t first_byte = reader->data[reader->position++];
+    header->type = first_byte & 0x0F;
+    int8_t delta = (first_byte & 0xF0) >> 4;
+
+    if (header->type == COMPACT_TYPE_STOP)
+    {
+        header->field_id = 0;
+        return 0;
+    }
+
+    if (delta == 0)
+    {
+        if (reader->position + 1 > reader->size)
+            return -1;
+        header->field_id = reader->data[reader->position] | (reader->data[reader->position + 1] << 8);
+        reader->position += 2;
+    }
+    else
+    {
+        header->field_id = *last_field_id + delta;
+    }
+
+    *last_field_id = header->field_id;
     return 0;
 }
 
@@ -45,35 +77,28 @@ int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value)
     return 0;
 }
 
-int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* header, int16_t* last_field_id)
+int thrift_read_byte(thrift_reader_t* reader, uint8_t* value)
 {
     if (reader->position >= reader->size)
-        return -1;
+        return -1; // Out of bounds
+    *value = reader->data[reader->position++];
+    return 0;
+}
 
-    uint8_t first_byte = reader->data[reader->position++];
-    header->type = first_byte & 0x0F;
-    int8_t delta = (first_byte & 0xF0) >> 4;
+// int thrift_read_bytes(thrift_reader_t* reader, uint8_t* buffer, size_t size);
 
-    // STOPフィールドの場合は、field IDを読み込まない
-    if (header->type == COMPACT_TYPE_STOP)
+int thrift_read_string(thrift_reader_t* reader, char** str, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++)
     {
-        header->field_id = 0;
-        return 0;
+        char c = reader->data[reader->position + i];
+        if (c < 32 || c > 126)
+            c = '.';
+        (*str)[i] = c;
     }
+    (*str)[len] = '\0'; // Null-terminate the string
+    reader->position += len;
 
-    if (delta == 0)
-    {
-        if (reader->position + 1 > reader->size)
-            return -1;
-        header->field_id = reader->data[reader->position] | (reader->data[reader->position + 1] << 8);
-        reader->position += 2;
-    }
-    else
-    {
-        header->field_id = *last_field_id + delta;
-    }
-
-    *last_field_id = header->field_id;
     return 0;
 }
 
@@ -94,7 +119,8 @@ int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last
         printf("  → BOOL value: false\n");
         break;
     case COMPACT_TYPE_BYTE:
-        uint8_t byte_value = reader->data[reader->position++];
+        uint8_t byte_value;
+        thrift_read_byte(reader, &byte_value);
         printf("  → BYTE value: %d\n", byte_value);
         break;
     case COMPACT_TYPE_I16:
@@ -124,17 +150,9 @@ int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last
         thrift_read_varint32(reader, &len);
         printf("  → STRING length: %u\n", len);
 
-        if (len > 0 && len < 200 && reader->position + len <= reader->size)
-        {
-            printf("    Content: \"");
-            for (uint32_t i = 0; i < len; i++)
-            {
-                char c = reader->data[reader->position + i];
-                printf("%c", (c >= 32 && c <= 126) ? c : '.');
-            }
-            printf("\"\n");
-        }
-        reader->position += len;
+        char* str = malloc(len + 1);
+        thrift_read_string(reader, &str, len);
+        printf("  → STRING value: '%s'\n", str);
         break;
     case COMPACT_TYPE_LIST:
         if (reader->position >= reader->size)
@@ -206,3 +224,95 @@ void thrift_print_hex(thrift_reader_t* reader, int bytes)
     }
     printf("\n");
 }
+
+
+// typedef enum
+// {
+//     COMPACT_TYPE_STOP = 0,
+//     COMPACT_TYPE_BOOL_TRUE = 1,
+//     COMPACT_TYPE_BOOL_FALSE = 2,
+//     COMPACT_TYPE_BYTE = 3,
+//     COMPACT_TYPE_I16 = 4,
+//     COMPACT_TYPE_I32 = 5,
+//     COMPACT_TYPE_I64 = 6,
+//     COMPACT_TYPE_DOUBLE = 7,
+//     COMPACT_TYPE_STRING = 8,
+//     COMPACT_TYPE_LIST = 9,
+//     COMPACT_TYPE_SET = 10,
+//     COMPACT_TYPE_MAP = 11,
+//     COMPACT_TYPE_STRUCT = 12
+// } compact_type_t;
+//
+
+// int thrift_parse_value(thrift_reader_t* reader, thrift_value_t* value)
+// {
+//     switch (value->type)
+//     {
+//     case COMPACT_TYPE_BOOL_TRUE:
+//         value->bool_val = 1;
+//         break;
+//     case COMPACT_TYPE_BOOL_FALSE:
+//         value->bool_val = 0;
+//         break;
+//     case COMPACT_TYPE_BYTE:
+//         value->byte_val = reader->data[reader->position++];
+//         break;
+//     case COMPACT_TYPE_I16:
+//         uint32_t varint16;
+//         if (thrift_read_varint32(reader, &varint16) != 0)
+//             return -1;
+//         value->i16_val = thrift_zigzag_decode32(varint16);
+//         break;
+//     case COMPACT_TYPE_I32:
+//         uint32_t varint32;
+//         if (thrift_read_varint32(reader, &varint32) != 0)
+//             return -1;
+//         value->i32_val = thrift_zigzag_decode32(varint32);
+//         break;
+//     case COMPACT_TYPE_I64:
+//         uint64_t varint64;
+//         if (thrift_read_varint64(reader, &varint64) != 0)
+//             return -1;
+//         value->i64_val = thrift_zigzag_decode64(varint64);
+//         break;
+//     case COMPACT_TYPE_DOUBLE:
+//         reader->position += 8; // Skip 8 bytes for double
+//         printf("Not implemented: COMPACT_TYPE_DOUBLE\n");
+//         break;
+//     case COMPACT_TYPE_STRING:
+//         uint32_t len;
+//         if (thrift_read_varint32(reader, &len) != 0)
+//             return -1;
+//
+//         char* str = malloc(len + 1);
+//         if (!str)
+//             return -1; // Memory allocation failed
+//         thrift_read_string(reader, str, len);
+//         str[len] = '\0'; // Null-terminate the string
+//         value->string_val.data = str;
+//         value->string_val.len = len;
+//         break;
+//     case COMPACT_TYPE_LIST:
+//         uint8_t list_header = reader->data[reader->position++];
+//         uint8_t element_type = list_header & 0x0F;
+//         uint8_t size_part = (list_header & 0xF0) >> 4;
+//         uint32_t size;
+//         if (size_part < 15)
+//         {
+//             size = size_part;
+//         }
+//         else
+//         {
+//             if (thrift_read_varint32(reader, &size) != 0)
+//                 return -1;
+//         }
+//         value->list_val.count = size;
+//         value->list_val.element_type = element_type;
+//         value->list_val.elements = malloc(size * sizeof(thrift_value_t));
+//         if (!value->list_val.elements)
+//             return -1; // Memory allocation failed
+//
+//         thrift_read_list(reader, &value->list_val, element_type);
+//         break;
+//     }
+// }
