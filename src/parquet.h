@@ -1,44 +1,33 @@
 #ifndef C_PARQUET_PARQUET_H
 #define C_PARQUET_PARQUET_H
 
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "thrift.h"
 
 #define PARQUET_MAGIC "PAR1"
 #define PARQUET_MAGIC_SIZE 4
 
-typedef struct
-{
-    uint8_t* data;
-    size_t size;
-    size_t position;
-} parquet_buffer_t;
 
 typedef struct
 {
     FILE* file;
     size_t file_size;
-    parquet_buffer_t buffer;
+    uint8_t* buffer;
 } parquet_reader_t;
 
 typedef struct
 {
-    uint32_t metadata_length;
-    uint8_t* metadata;
-} parquet_footer_t;
-
-typedef struct
-{
     int32_t version;
+    uint32_t schema_count;
     int64_t num_rows;
+    uint32_t row_groups_count;
     char* created_by;
-    size_t created_by_length;
 } parquet_metadata_t;
 
-int parquet_open(parquet_reader_t* reader, const char* filename);
-int parquet_validate_magic(parquet_reader_t* reader);
+parquet_reader_t* parquet_open(const char* filename);
 int parquet_close(parquet_reader_t* reader);
-int parquet_read_footer(parquet_reader_t* reader, parquet_footer_t* footer);
+parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader);
+void print_metadata(const parquet_metadata_t* metadata);
 
 #endif // C_PARQUET_PARQUET_H

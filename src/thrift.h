@@ -1,5 +1,6 @@
 #ifndef C_PARQUET_THRIFT_H
 #define C_PARQUET_THRIFT_H
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -20,11 +21,52 @@ typedef enum
     COMPACT_TYPE_STRUCT = 12
 } compact_type_t;
 
+typedef struct thrift_value thrift_value_t;
+
 typedef struct
 {
-    uint8_t type; // compact_type_t
-    int16_t field_id;
-} thrift_field_header_t;
+    uint32_t len;
+    uint8_t* data;
+} thrift_binary_t;
+
+typedef struct
+{
+    compact_type_t type;
+    uint32_t count;
+    thrift_value_t* elements;
+} thrift_list_t;
+
+typedef struct
+{
+    uint16_t field_id;
+    compact_type_t type;
+    thrift_value_t* value;
+} thrift_field_t;
+
+typedef struct
+{
+    uint32_t field_count;
+    thrift_field_t* fields;
+} thrift_struct_t;
+
+typedef union
+{
+    bool bool_val; // BOOL_TRUE / BOOL_FALSE
+    int8_t byte_val; // BYTE
+    int16_t i16_val; // I16
+    int32_t i32_val; // I32
+    int64_t i64_val; // I64
+    double double_val; // DOUBLE
+    thrift_binary_t binary; // STRING
+    thrift_list_t list; // LIST/SET
+    thrift_struct_t struct_val; // STRUCT
+} thrift_data_t;
+
+typedef struct thrift_value
+{
+    compact_type_t type;
+    thrift_data_t data;
+} thrift_value_t;
 
 typedef struct
 {
@@ -33,85 +75,14 @@ typedef struct
     size_t position;
 } thrift_reader_t;
 
-// thrift_read_byte();
-// thrift_read_bytes();
-// thrift_read_string();
+thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size);
 
-int thrift_reader_init(thrift_reader_t* reader, uint8_t* data, size_t size);
-int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* header, int16_t* last_field_id);
-int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value);
-int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value);
-int thrift_read_byte(thrift_reader_t* reader, uint8_t* value);
-// int thrift_read_bytes(thrift_reader_t* reader, uint8_t* buffer, size_t size);
-int thrift_read_string(thrift_reader_t* reader, char** str, uint32_t len);
-// int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list);
-// int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* thrift_struct);
+int32_t thrift_read_varint32(thrift_reader_t* reader);
+int32_t thrift_read_zigzag32(thrift_reader_t* reader);
+int64_t thrift_read_varint64(thrift_reader_t* reader);
+int64_t thrift_read_zigzag64(thrift_reader_t* reader);
 
-int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last_field_id);
-void thrift_print_hex(thrift_reader_t* reader, int bytes);
-
-typedef struct thrift_value thrift_value_t;
-
-typedef struct
-{
-    thrift_value_t* fields;
-    size_t field_count;
-    size_t capacity;
-} thrift_struct_t;
-
-typedef struct
-{
-    thrift_value_t* elements;
-    size_t count;
-    uint8_t element_type;
-} thrift_list_t;
-
-struct thrift_value
-{
-    compact_type_t type;
-    int16_t field_id;
-    union
-    {
-        int bool_val;
-        int8_t byte_val;
-        int16_t i16_val;
-        int32_t i32_val;
-        int64_t i64_val;
-        double double_val;
-        struct
-        {
-            char* data;
-            uint32_t len;
-        } string_val;
-        thrift_list_t list_val;
-        thrift_struct_t struct_val;
-    };
-};
-
-
-// thrift_skip_bool()
-// thrift_skip_byte()
-// thrift_skip_i16()
-// thrift_skip_i32()
-// thrift_skip_i64()
-// thrift_skip_double()
-// thrift_skip_string()
-// thrift_skip_list()
-// thrift_skip_struct()
-// thrift_skip_set_or_map()
-
-// thrift_parse_bool()
-// thrift_parse_byte()
-// thrift_parse_i16()
-// thrift_parse_i32()
-// thrift_parse_i64()
-// thrift_parse_double()
-// thrift_parse_string()
-// thrift_parse_list()
-
-
-int thrift_parse_value(thrift_reader_t* reader, thrift_value_t* value);
-int thrift_parse_struct(thrift_reader_t* reader, thrift_struct_t* thrift_struct);
-thrift_value_t* thrift_struct_get_field(thrift_struct_t* thrift_struct, int16_t field_id);
+thrift_value_t* thrift_read_value(thrift_reader_t* reader);
+thrift_struct_t* thrift_read_struct(thrift_reader_t* reader);
 
 #endif // C_PARQUET_THRIFT_H

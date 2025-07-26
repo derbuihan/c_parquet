@@ -3,56 +3,101 @@
 #include <stdlib.h>
 #include <string.h>
 
-int parquet_open(parquet_reader_t* reader, const char* filename)
+int parquet_validate_magic(parquet_reader_t* reader)
 {
-    reader->file = fopen(filename, "rb");
-    if (!reader->file)
+    if (memcmp(reader->buffer, PARQUET_MAGIC, PARQUET_MAGIC_SIZE) != 0)
         return -1;
 
-    // Get file size
+    size_t footer_offset = reader->file_size - PARQUET_MAGIC_SIZE;
+    if (memcmp(reader->buffer + footer_offset, PARQUET_MAGIC, PARQUET_MAGIC_SIZE) != 0)
+        return -1;
+
+    return 0;
+}
+
+parquet_reader_t* parquet_open(const char* filename)
+{
+    parquet_reader_t* reader = malloc(sizeof(parquet_reader_t));
+    if (!reader)
+        return NULL; // Memory allocation failed
+
+    reader->file = fopen(filename, "rb");
+    if (!reader->file)
+    {
+        free(reader);
+        return NULL; // File open failed
+    }
+
     fseek(reader->file, 0, SEEK_END);
     reader->file_size = ftell(reader->file);
     fseek(reader->file, 0, SEEK_SET);
 
-    reader->buffer.data = malloc(reader->file_size);
-    reader->buffer.size = reader->file_size;
-    reader->buffer.position = 0;
+    reader->buffer = malloc(reader->file_size);
+    if (!reader->buffer)
+    {
+        fclose(reader->file);
+        free(reader);
+        return NULL; // Memory allocation failed
+    }
+    fread(reader->buffer, 1, reader->file_size, reader->file);
 
-    fread(reader->buffer.data, 1, reader->file_size, reader->file);
+    if (parquet_validate_magic(reader) != 0)
+    {
+        fclose(reader->file);
+        free(reader->buffer);
+        free(reader);
+        return NULL; // Invalid Parquet file magic
+    }
 
-    return 0;
+    return reader;
 }
 
-int parquet_validate_magic(parquet_reader_t* reader)
-{
-    if (memcmp(reader->buffer.data, PARQUET_MAGIC, PARQUET_MAGIC_SIZE) != 0)
-        return -1;
-
-    size_t footer_offset = reader->file_size - PARQUET_MAGIC_SIZE;
-    if (memcmp(reader->buffer.data + footer_offset, PARQUET_MAGIC, PARQUET_MAGIC_SIZE) != 0)
-        return -1;
-
-    return 0;
-}
 
 int parquet_close(parquet_reader_t* reader)
 {
     if (reader->file)
         fclose(reader->file);
-    if (reader->buffer.data)
-        free(reader->buffer.data);
+    if (reader->buffer)
+        free(reader->buffer);
+    free(reader);
     return 0;
 }
 
-int parquet_read_footer(parquet_reader_t* reader, parquet_footer_t* footer)
+thrift_reader_t* parquet_read_footer(parquet_reader_t* reader)
 {
     size_t footer_size_pos = reader->file_size - PARQUET_MAGIC_SIZE - 4;
+    uint8_t* pos = reader->buffer + footer_size_pos;
 
-    uint8_t* pos = reader->buffer.data + footer_size_pos;
-    footer->metadata_length = pos[0] | (pos[1] << 8) | (pos[2] << 16) | (pos[3] << 24);
+    uint32_t footer_length = pos[0] | (pos[1] << 8) | (pos[2] << 16) | (pos[3] << 24);
+    size_t metadata_pos = footer_size_pos - footer_length;
 
-    size_t metadata_pos = footer_size_pos - footer->metadata_length;
-    footer->metadata = reader->buffer.data + metadata_pos;
+    thrift_reader_t* thrift_reader = thrift_reader_init(reader->buffer + metadata_pos, footer_length);
+    return thrift_reader;
+}
 
-    return 0;
+parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader)
+{
+    thrift_reader_t* thrift_reader = parquet_read_footer(reader);
+    if (!thrift_reader)
+        return NULL; // Failed to read footer
+
+    parquet_metadata_t* metadata = malloc(sizeof(parquet_metadata_t));
+    if (!metadata)
+    {
+        free(thrift_reader);
+        return NULL; // Memory allocation failed
+    }
+
+    metadata->version = thrift_read_varint32(thrift_reader);
+    return metadata;
+}
+
+void print_metadata(const parquet_metadata_t* metadata)
+{
+    if (!metadata)
+        return;
+
+    printf("Parquet Metadata:\n");
+    printf("  Version: %d\n", metadata->version);
+    // Add more fields as needed
 }

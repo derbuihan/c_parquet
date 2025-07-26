@@ -4,13 +4,53 @@
 #include <stdlib.h>
 
 
-int thrift_reader_init(thrift_reader_t* reader, uint8_t* data, size_t size)
+thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size)
 {
+    thrift_reader_t* reader = malloc(sizeof(thrift_reader_t));
+    if (!reader)
+        return NULL; // Memory allocation failed
     reader->data = data;
     reader->size = size;
     reader->position = 0;
-    return 0;
+    return reader;
 }
+
+
+int32_t thrift_read_varint32(thrift_reader_t* reader)
+{
+    uint32_t value = 0;
+    uint8_t shift = 0;
+
+    while (reader->position < reader->size)
+    {
+        uint8_t byte = reader->data[reader->position++];
+        value |= (byte & 0x7F) << shift;
+        if ((byte & 0x80) == 0)
+            return (int32_t)value;
+        shift += 7;
+        if (shift >= 35)
+            exit(1);
+    }
+    exit(1);
+}
+
+int32_t thrift_read_zigzag32(thrift_reader_t* reader)
+{
+    uint32_t value = thrift_read_varint32(reader);
+    return (int32_t)((value >> 1) ^ -(int32_t)(value & 1));
+}
+
+int64_t thrift_read_varint64(thrift_reader_t* reader)
+{
+    return thrift_read_varint32(reader) | ((int64_t)thrift_read_varint32(reader) << 32);
+}
+
+int64_t thrift_read_zigzag64(thrift_reader_t* reader)
+{
+    return (int64_t)((thrift_read_varint64(reader) >> 1) ^ -(int64_t)(thrift_read_varint64(reader) & 1));
+}
+
+/*
 
 int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* header, int16_t* last_field_id)
 {
@@ -43,22 +83,6 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* hea
     return 0;
 }
 
-int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value)
-{
-    *value = 0;
-    uint8_t shift = 0;
-    while (reader->position < reader->size)
-    {
-        uint8_t byte = reader->data[reader->position++];
-        *value |= (byte & 0x7F) << shift;
-        if ((byte & 0x80) == 0)
-            break;
-        shift += 7;
-        if (shift >= 32)
-            return -1; // Overflow
-    }
-    return 0;
-}
 
 int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value)
 {
@@ -316,3 +340,5 @@ void thrift_print_hex(thrift_reader_t* reader, int bytes)
 //         break;
 //     }
 // }
+
+*/

@@ -4,43 +4,17 @@
 
 #include "thrift.h"
 
-void test_compact_thrift(parquet_footer_t* footer)
+int parse_file_metadata(thrift_reader_t* reader)
 {
-    printf("\n=== Clean Compact Thrift Parser ===\n");
+    int32_t version = thrift_read_varint32(reader);
+    printf("Version: %d\n", version);
 
-    thrift_reader_t reader;
-    thrift_reader_init(&reader, footer->metadata, footer->metadata_length);
-
-    int16_t root_last_field_id = 0; // ルートレベルのコンテキスト
-    int field_count = 0;
-
-    while (reader.position < reader.size && field_count < 10)
-    {
-        thrift_field_header_t header;
-
-        printf("\n[Field %d] Position %zu:\n", field_count, reader.position);
-
-        if (thrift_read_field_header(&reader, &header, &root_last_field_id) != 0)
-            break;
-
-        printf("  Field ID: %d, Compact Type: %d\n", header.field_id, header.type);
-
-        if (header.type == COMPACT_TYPE_STOP)
-        {
-            printf("  → STOP\n");
-            break;
-        }
-        if (thrift_skip_field(&reader, header.type, &root_last_field_id) != 0)
-            break;
-
-        field_count++;
-    }
-
-    printf("\nParsed %d fields successfully!\n", field_count);
+    return 0;
 }
 
 int main(void)
 {
+    // Initialize command line arguments
     int argc = 2;
     char* argv[] = {"c_parquet", "../examples/simple.parquet"};
 
@@ -51,29 +25,27 @@ int main(void)
         return -1;
     }
 
-    parquet_reader_t reader;
-    if (parquet_open(&reader, argv[1]) != 0)
+    // Open the Parquet file
+    parquet_reader_t* reader = parquet_open(argv[1]);
+    if (!reader)
     {
-        fprintf(stderr, "Error opening Parquet file: %s\n", argv[1]);
+        printf("Error: Could not open Parquet file '%s'.\n", argv[1]);
         return -1;
     }
-
-    if (parquet_validate_magic(&reader) != 0)
-    {
-        fprintf(stderr, "Invalid Parquet file magic in: %s\n", argv[1]);
-        parquet_close(&reader);
-        return -1;
-    }
-
     printf("Parquet file '%s' opened successfully.\n", argv[1]);
 
-    parquet_footer_t footer;
-    if (parquet_read_footer(&reader, &footer) == 0)
+    // Read the metadata
+    parquet_metadata_t* metadata = parquet_read_metadata(reader);
+    if (!metadata)
     {
-        test_compact_thrift(&footer); // ミニマムテスト
+        printf("Error: Could not read metadata from Parquet file '%s'.\n", argv[1]);
+        parquet_close(reader);
+        return -1;
     }
+    print_metadata(metadata);
 
-    parquet_close(&reader);
+    // Read the footer
+    parquet_close(reader);
 
     return 0;
 }
