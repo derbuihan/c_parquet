@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "thrift.h"
+
 int parquet_validate_magic(parquet_reader_t* reader)
 {
     if (memcmp(reader->buffer, PARQUET_MAGIC, PARQUET_MAGIC_SIZE) != 0)
