@@ -1,8 +1,6 @@
 #include "thrift.h"
 
-#include <stdio.h>
 #include <stdlib.h>
-
 
 thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size)
 {

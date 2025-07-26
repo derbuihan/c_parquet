@@ -3,11 +3,9 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "thrift.h"
 
 #define PARQUET_MAGIC "PAR1"
 #define PARQUET_MAGIC_SIZE 4
-
 
 typedef struct
 {

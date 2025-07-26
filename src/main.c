@@ -1,16 +1,4 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include "parquet.h"
-
-#include "thrift.h"
-
-int parse_file_metadata(thrift_reader_t* reader)
-{
-    int32_t version = thrift_read_varint32(reader);
-    printf("Version: %d\n", version);
-
-    return 0;
-}
 
 int main(void)
 {
