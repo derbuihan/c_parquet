@@ -2,75 +2,86 @@
 
 #include <stdlib.h>
 
-thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size)
-{
-    thrift_reader_t* reader = malloc(sizeof(thrift_reader_t));
-    if (!reader)
-        return NULL; // Memory allocation failed
-    reader->data = data;
-    reader->size = size;
-    reader->position = 0;
-    return reader;
+thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size) {
+  thrift_reader_t* reader = malloc(sizeof(thrift_reader_t));
+  if (!reader) return NULL;  // Memory allocation failed
+  reader->data = data;
+  reader->size = size;
+  reader->position = 0;
+  return reader;
 }
 
 void thrift_reader_free(thrift_reader_t* reader) {
-    if (reader) {
-        free(reader);
-    }
+  if (reader) {
+    free(reader);
+  }
 }
 
-int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value){
-    *value = 0;
-    uint8_t shift = 0;
+int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value) {
+  *value = 0;
+  uint8_t shift = 0;
 
-    while (reader->position < reader->size)
-    {
-        uint8_t byte = reader->data[reader->position++];
-        *value |= (byte & 0x7F) << shift;
-        if ((byte & 0x80) == 0)
-            return 0;
-        shift += 7;
-        if (shift >= 32)
-            return -1;
-    }
-    return -1;
+  while (reader->position < reader->size) {
+    uint8_t byte = reader->data[reader->position++];
+    *value |= (byte & 0x7F) << shift;
+    if ((byte & 0x80) == 0) return 0;
+    shift += 7;
+    if (shift >= 32) return -1;
+  }
+  return -1;
 }
 
 int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value) {
-    uint32_t varint;
-    if (thrift_read_varint32(reader, &varint) != 0)
-        return -1;
-    *value = (int32_t)((varint >> 1) ^ -(int32_t)(varint & 1));
-    return 0;
+  uint32_t varint;
+  if (thrift_read_varint32(reader, &varint) != 0) return -1;
+  *value = (int32_t)((varint >> 1) ^ -(int32_t)(varint & 1));
+  return 0;
 }
 
 int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value) {
-    *value = 0;
-    uint8_t shift = 0;
+  *value = 0;
+  uint8_t shift = 0;
 
-    while (reader->position < reader->size)
-    {
-        uint8_t byte = reader->data[reader->position++];
-        *value |= (uint64_t)(byte & 0x7F) << shift;
-        if ((byte & 0x80) == 0)
-            return 0;
-        shift += 7;
-        if (shift >= 64)
-            return -1;
-    }
-    return -1;
+  while (reader->position < reader->size) {
+    uint8_t byte = reader->data[reader->position++];
+    *value |= (uint64_t)(byte & 0x7F) << shift;
+    if ((byte & 0x80) == 0) return 0;
+    shift += 7;
+    if (shift >= 64) return -1;
+  }
+  return -1;
 }
+
 int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value) {
-    uint64_t varint;
-    if (thrift_read_varint64(reader, &varint) != 0)
-        return -1;
-    *value = (int64_t)((varint >> 1) ^ -(int64_t)(varint & 1));
+  uint64_t varint;
+  if (thrift_read_varint64(reader, &varint) != 0) return -1;
+  *value = (int64_t)((varint >> 1) ^ -(int64_t)(varint & 1));
+  return 0;
+}
+
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
+  uint8_t first_byte = reader->data[reader->position++];
+  field->type = first_byte & 0x0F;
+  int8_t delta = (first_byte & 0xF0) >> 4;
+
+  if (field->type == COMPACT_TYPE_STOP) {
+    field->field_id = 0;
     return 0;
+  }
+
+  if (delta == 0) {
+    if (reader->position + 1 > reader->size) return -1;  // Out of bounds
+    field->field_id = reader->data[reader->position] |
+                      (reader->data[reader->position + 1] << 8);
+    reader->position += 2;
+  } else {
+  }
 }
 
 /*
 
-int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* header, int16_t* last_field_id)
+int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t*
+header, int16_t* last_field_id)
 {
     if (reader->position >= reader->size)
         return -1;
@@ -89,8 +100,8 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t* hea
     {
         if (reader->position + 1 > reader->size)
             return -1;
-        header->field_id = reader->data[reader->position] | (reader->data[reader->position + 1] << 8);
-        reader->position += 2;
+        header->field_id = reader->data[reader->position] |
+(reader->data[reader->position + 1] << 8); reader->position += 2;
     }
     else
     {
@@ -144,11 +155,14 @@ int thrift_read_string(thrift_reader_t* reader, char** str, uint32_t len)
     return 0;
 }
 
-int32_t thrift_zigzag_decode32(uint32_t n) { return (int32_t)((n >> 1) ^ -(int32_t)(n & 1)); }
+int32_t thrift_zigzag_decode32(uint32_t n) { return (int32_t)((n >> 1) ^
+-(int32_t)(n & 1)); }
 
-int64_t thrift_zigzag_decode64(uint64_t n) { return (int64_t)((n >> 1) ^ -(int64_t)(n & 1)); }
+int64_t thrift_zigzag_decode64(uint64_t n) { return (int64_t)((n >> 1) ^
+-(int64_t)(n & 1)); }
 
-int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last_field_id)
+int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t*
+last_field_id)
 {
     switch (field_type)
     {
@@ -221,7 +235,8 @@ int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last
         {
             printf("    [%u] ", i);
             int16_t element_last_field_id = 0;
-            if (thrift_skip_field(reader, element_type, &element_last_field_id) != 0)
+            if (thrift_skip_field(reader, element_type, &element_last_field_id)
+!= 0)
             {
                 return -1;
             }
@@ -232,12 +247,14 @@ int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last
         thrift_field_header_t nested_header;
 
         printf("  → STRUCT {\n");
-        while (thrift_read_field_header(reader, &nested_header, &struct_last_field_id) == 0 &&
-               nested_header.type != COMPACT_TYPE_STOP)
+        while (thrift_read_field_header(reader, &nested_header,
+&struct_last_field_id) == 0 && nested_header.type != COMPACT_TYPE_STOP)
         {
-            printf("    Field ID:%d Type:%d ", nested_header.field_id, nested_header.type);
+            printf("    Field ID:%d Type:%d ", nested_header.field_id,
+nested_header.type);
 
-            if (thrift_skip_field(reader, nested_header.type, &struct_last_field_id) != 0)
+            if (thrift_skip_field(reader, nested_header.type,
+&struct_last_field_id) != 0)
             {
                 return -1;
             }
@@ -250,9 +267,8 @@ int thrift_skip_field(thrift_reader_t* reader, uint8_t field_type, int16_t* last
         reader->position += 1;
         break;
     default:
-        printf("  → Unknown type %d at position %zu, skipping 1 byte\n", field_type, reader->position);
-        reader->position += 1;
-        break;
+        printf("  → Unknown type %d at position %zu, skipping 1 byte\n",
+field_type, reader->position); reader->position += 1; break;
     }
     return 0;
 }

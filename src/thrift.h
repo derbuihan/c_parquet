@@ -21,7 +21,7 @@ typedef enum
     COMPACT_TYPE_STRUCT = 12
 } compact_type_t;
 
-typedef struct thrift_value thrift_value_t;
+typedef union thrift_data thrift_data_t;
 
 typedef struct
 {
@@ -33,14 +33,14 @@ typedef struct
 {
     compact_type_t type;
     uint32_t count;
-    thrift_value_t* elements;
+    thrift_data_t* elements;
 } thrift_list_t;
 
 typedef struct
 {
     uint16_t field_id;
     compact_type_t type;
-    thrift_value_t* value;
+    thrift_data_t* value;
 } thrift_field_t;
 
 typedef struct
@@ -49,7 +49,7 @@ typedef struct
     thrift_field_t* fields;
 } thrift_struct_t;
 
-typedef union
+union thrift_data
 {
     bool bool_val; // BOOL_TRUE / BOOL_FALSE
     int8_t byte_val; // BYTE
@@ -60,13 +60,7 @@ typedef union
     thrift_binary_t binary; // STRING
     thrift_list_t list; // LIST/SET
     thrift_struct_t struct_val; // STRUCT
-} thrift_data_t;
-
-typedef struct thrift_value
-{
-    compact_type_t type;
-    thrift_data_t data;
-} thrift_value_t;
+};
 
 typedef struct
 {
@@ -83,7 +77,8 @@ int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value);
 int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value);
 int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value);
 
-int thrift_read_value(thrift_reader_t* reader, thrift_value_t* value);
-int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* struct_val);
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field);
+// int thrift_read_value(thrift_reader_t* reader, thrift_value_t* value);
+// int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* struct_val);
 
 #endif // C_PARQUET_THRIFT_H
