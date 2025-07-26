@@ -79,25 +79,15 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
   }
 
   thrift_field_t field;
-  if (thrift_read_field(thrift_reader, &field) != 0) {
+  int16_t last_field_id = 0;
+  if (thrift_read_field(thrift_reader, &field, &last_field_id) != 0) {
     free(metadata);
     thrift_reader_free(thrift_reader);
     return NULL;  // Failed to read field
   }
 
   printf("Field ID: %d, Type: %d\n", field.field_id, field.type);
-
-  if (field.type != COMPACT_TYPE_I32) {
-    free(metadata);
-    thrift_reader_free(thrift_reader);
-    return NULL;  // Expected I32 type for version
-  }
-
-  if (thrift_read_zigzag32(thrift_reader, &metadata->version) != 0) {
-    free(metadata);
-    thrift_reader_free(thrift_reader);
-    return NULL;  // Failed to read version
-  }
+  metadata->version = field.value->i32_val;
 
   thrift_reader_free(thrift_reader);
   return metadata;

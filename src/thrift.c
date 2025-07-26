@@ -1,5 +1,6 @@
 #include "thrift.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size) {
@@ -59,7 +60,10 @@ int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value) {
   return 0;
 }
 
-int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
+int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
+                             int16_t* last_field_id) {
+  if (reader->position >= reader->size) return -1;  // Out of bounds
+
   uint8_t first_byte = reader->data[reader->position++];
   field->type = first_byte & 0x0F;
   int8_t delta = (first_byte & 0xF0) >> 4;
@@ -70,12 +74,34 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
   }
 
   if (delta == 0) {
-    if (reader->position + 1 > reader->size) return -1;  // Out of bounds
     field->field_id = reader->data[reader->position] |
                       (reader->data[reader->position + 1] << 8);
     reader->position += 2;
   } else {
-    field->field_id = delta;
+    field->field_id = *last_field_id + delta;
+  }
+
+  *last_field_id = field->field_id;
+  return 0;
+}
+
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
+                      int16_t* last_field_id) {
+  if (thrift_read_field_header(reader, field, last_field_id) != 0) {
+    return -1;  // Failed to read field header
+  }
+  field->value = malloc(sizeof(thrift_data_t));
+  if (!field->value) return -1;  // Memory allocation failed
+
+  switch (field->type) {
+    case COMPACT_TYPE_I32:
+      if (thrift_read_zigzag32(reader, &field->value->i32_val) != 0) {
+        free(field->value);
+        return -1;  // Failed to read I32 value
+      }
+      break;
+    default:
+      break;
   }
 
   return 0;
@@ -141,7 +167,8 @@ int thrift_read_byte(thrift_reader_t* reader, uint8_t* value)
     return 0;
 }
 
-// int thrift_read_bytes(thrift_reader_t* reader, uint8_t* buffer, size_t size);
+// int thrift_read_bytes(thrift_reader_t* reader, uint8_t* buffer, size_t
+size);
 
 int thrift_read_string(thrift_reader_t* reader, char** str, uint32_t len)
 {
@@ -238,7 +265,8 @@ last_field_id)
         {
             printf("    [%u] ", i);
             int16_t element_last_field_id = 0;
-            if (thrift_skip_field(reader, element_type, &element_last_field_id)
+            if (thrift_skip_field(reader, element_type,
+&element_last_field_id)
 != 0)
             {
                 return -1;

@@ -77,7 +77,8 @@ int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value);
 int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value);
 int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value);
 
-int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field);
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field , 
+                      int16_t* last_field_id);
 // int thrift_read_value(thrift_reader_t* reader, thrift_value_t* value);
 // int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* struct_val);
 
