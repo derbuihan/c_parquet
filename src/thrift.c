@@ -75,7 +75,10 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
                       (reader->data[reader->position + 1] << 8);
     reader->position += 2;
   } else {
+    field->field_id = delta;
   }
+
+  return 0;
 }
 
 /*
