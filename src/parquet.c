@@ -90,7 +90,14 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader)
         return NULL; // Memory allocation failed
     }
 
-    metadata->version = thrift_read_varint32(thrift_reader);
+    if (thrift_read_varint32(thrift_reader, &metadata->version) != 0)
+    {
+        free(metadata);
+        thrift_reader_free(thrift_reader);
+        return NULL; // Failed to read version
+    }
+
+    thrift_reader_free(thrift_reader);
     return metadata;
 }
 

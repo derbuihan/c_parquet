@@ -76,13 +76,14 @@ typedef struct
 } thrift_reader_t;
 
 thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size);
+void thrift_reader_free(thrift_reader_t* reader);
 
-int32_t thrift_read_varint32(thrift_reader_t* reader);
-int32_t thrift_read_zigzag32(thrift_reader_t* reader);
-int64_t thrift_read_varint64(thrift_reader_t* reader);
-int64_t thrift_read_zigzag64(thrift_reader_t* reader);
+int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value);
+int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value);
+int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value);
+int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value);
 
-thrift_value_t* thrift_read_value(thrift_reader_t* reader);
-thrift_struct_t* thrift_read_struct(thrift_reader_t* reader);
+int thrift_read_value(thrift_reader_t* reader, thrift_value_t* value);
+int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* struct_val);
 
 #endif // C_PARQUET_THRIFT_H

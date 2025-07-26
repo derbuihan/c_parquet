@@ -13,39 +13,59 @@ thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size)
     return reader;
 }
 
+void thrift_reader_free(thrift_reader_t* reader) {
+    if (reader) {
+        free(reader);
+    }
+}
 
-int32_t thrift_read_varint32(thrift_reader_t* reader)
-{
-    uint32_t value = 0;
+int thrift_read_varint32(thrift_reader_t* reader, uint32_t* value){
+    *value = 0;
     uint8_t shift = 0;
 
     while (reader->position < reader->size)
     {
         uint8_t byte = reader->data[reader->position++];
-        value |= (byte & 0x7F) << shift;
+        *value |= (byte & 0x7F) << shift;
         if ((byte & 0x80) == 0)
-            return (int32_t)value;
+            return 0;
         shift += 7;
-        if (shift >= 35)
-            exit(1);
+        if (shift >= 32)
+            return -1;
     }
-    exit(1);
+    return -1;
 }
 
-int32_t thrift_read_zigzag32(thrift_reader_t* reader)
-{
-    uint32_t value = thrift_read_varint32(reader);
-    return (int32_t)((value >> 1) ^ -(int32_t)(value & 1));
+int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value) {
+    uint32_t varint;
+    if (thrift_read_varint32(reader, &varint) != 0)
+        return -1;
+    *value = (int32_t)((varint >> 1) ^ -(int32_t)(varint & 1));
+    return 0;
 }
 
-int64_t thrift_read_varint64(thrift_reader_t* reader)
-{
-    return thrift_read_varint32(reader) | ((int64_t)thrift_read_varint32(reader) << 32);
-}
+int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value) {
+    *value = 0;
+    uint8_t shift = 0;
 
-int64_t thrift_read_zigzag64(thrift_reader_t* reader)
-{
-    return (int64_t)((thrift_read_varint64(reader) >> 1) ^ -(int64_t)(thrift_read_varint64(reader) & 1));
+    while (reader->position < reader->size)
+    {
+        uint8_t byte = reader->data[reader->position++];
+        *value |= (uint64_t)(byte & 0x7F) << shift;
+        if ((byte & 0x80) == 0)
+            return 0;
+        shift += 7;
+        if (shift >= 64)
+            return -1;
+    }
+    return -1;
+}
+int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value) {
+    uint64_t varint;
+    if (thrift_read_varint64(reader, &varint) != 0)
+        return -1;
+    *value = (int64_t)((varint >> 1) ^ -(int64_t)(varint & 1));
+    return 0;
 }
 
 /*
