@@ -78,16 +78,21 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
     return NULL;  // Memory allocation failed
   }
 
-  thrift_field_t field;
-  int16_t last_field_id = 0;
-  if (thrift_read_field(thrift_reader, &field, &last_field_id) != 0) {
+  // int thrift_read_root(thrift_reader_t* reader, thrift_struct_t* root) {
+
+  thrift_struct_t root;
+  if (thrift_read_root(thrift_reader, &root) != 0) {
     free(metadata);
     thrift_reader_free(thrift_reader);
-    return NULL;  // Failed to read field
+    return NULL;  // Failed to read root struct
   }
 
-  printf("Field ID: %d, Type: %d\n", field.field_id, field.type);
-  metadata->version = field.value->i32_val;
+  for (size_t i = 0; i < root.field_count; i++) {
+    printf("Field ID: %d, Type: %d\n", root.fields[i].field_id,
+           root.fields[i].type);
+  }
+
+  metadata->version = root.fields[0].value->i32_val;
 
   thrift_reader_free(thrift_reader);
   return metadata;

@@ -107,6 +107,25 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
   return 0;
 }
 
+int thrift_read_root(thrift_reader_t* reader, thrift_struct_t* root) {
+  root->field_count = 0;
+  root->fields = malloc(10 * sizeof(thrift_field_t));  // Initial capacity
+  if (!root->fields) return -1;  // Memory allocation failed
+  int16_t last_field_id = 0;
+  thrift_field_t field;
+  while (thrift_read_field(reader, &field, &last_field_id) == 0 &&
+         field.type != COMPACT_TYPE_STOP) {
+    if (root->field_count >= 10) {  // Resize if needed
+      root->fields = realloc(root->fields,
+                             (root->field_count + 10) * sizeof(thrift_field_t));
+      if (!root->fields) return -1;  // Memory allocation failed
+    }
+    root->fields[root->field_count++] = field;
+  }
+
+  return 0;  // Successfully read root struct
+}
+
 /*
 
 int thrift_read_field_header(thrift_reader_t* reader, thrift_field_header_t*
