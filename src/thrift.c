@@ -60,6 +60,33 @@ int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value) {
   return 0;
 }
 
+int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list) {
+  if (reader->position >= reader->size) return -1;  // Out of bounds
+
+  uint8_t first_byte = reader->data[reader->position++];
+  list->type = first_byte & 0x0F;
+  uint8_t size_part = (first_byte & 0xF0) >> 4;
+  if (size_part < 15) {
+    list->count = size_part;
+  } else {
+    if (thrift_read_varint32(reader, &list->count) != 0)
+      return -1;  // Failed to read size
+  }
+
+  list->elements = malloc(list->count * sizeof(thrift_data_t));
+  if (!list->elements) return -1;  // Memory allocation failed
+  for (uint32_t i = 0; i < list->count; i++) {
+    thrift_field_t field;
+    int16_t last_field_id = 0;
+    if (thrift_read_field(reader, &field, &last_field_id) != 0) {
+      free(list->elements);
+      return -1;  // Failed to read list element
+    }
+    list->elements[i] = *field.value;  // Copy the value
+  }
+  return 0;  // Successfully read list
+}
+
 int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
                              int16_t* last_field_id) {
   if (reader->position >= reader->size) return -1;  // Out of bounds
@@ -82,6 +109,9 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
   }
 
   *last_field_id = field->field_id;
+
+  printf("Field ID: %d, Type: %d\n", field->field_id, field->type);
+
   return 0;
 }
 
@@ -98,6 +128,12 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
       if (thrift_read_zigzag32(reader, &field->value->i32_val) != 0) {
         free(field->value);
         return -1;  // Failed to read I32 value
+      }
+      break;
+    case COMPACT_TYPE_LIST:
+      if (thrift_read_list(reader, &field->value->list) != 0) {
+        free(field->value);
+        return -1;  // Failed to read list
       }
       break;
     default:

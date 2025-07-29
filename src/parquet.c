@@ -88,8 +88,8 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
   }
 
   for (size_t i = 0; i < root.field_count; i++) {
-    printf("Field ID: %d, Type: %d\n", root.fields[i].field_id,
-           root.fields[i].type);
+    //    printf("Field ID: %d, Type: %d\n", root.fields[i].field_id,
+    //    root.fields[i].type);
   }
 
   metadata->version = root.fields[0].value->i32_val;
