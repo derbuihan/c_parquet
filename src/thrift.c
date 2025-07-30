@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 thrift_reader_t* thrift_reader_init(uint8_t* data, size_t size) {
   thrift_reader_t* reader = malloc(sizeof(thrift_reader_t));
@@ -60,6 +61,27 @@ int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value) {
   return 0;
 }
 
+int thrift_read_string(thrift_reader_t* reader, thrift_binary_t* binary) {
+  uint32_t len;
+  if (thrift_read_varint32(reader, &len) != 0)
+    return -1;  // Failed to read length
+
+  binary->data = malloc(len + 1);  // +1 for null terminator
+  if (!binary->data) return -1;    // Memory allocation failed
+
+  if (reader->position + len > reader->size) {
+    free(binary->data);
+    return -1;  // Out of bounds
+  }
+
+  memcpy(binary->data, reader->data + reader->position, len);
+  binary->data[len] = '\0';  // Null-terminate the string
+  binary->len = len;
+  reader->position += len;
+
+  return 0;  // Successfully read string
+}
+
 int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list) {
   if (reader->position >= reader->size) return -1;  // Out of bounds
 
@@ -75,9 +97,10 @@ int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list) {
 
   list->elements = malloc(list->count * sizeof(thrift_data_t));
   if (!list->elements) return -1;  // Memory allocation failed
+
+  int16_t last_field_id = 0;
   for (uint32_t i = 0; i < list->count; i++) {
     thrift_field_t field;
-    int16_t last_field_id = 0;
     if (thrift_read_field(reader, &field, &last_field_id) != 0) {
       free(list->elements);
       return -1;  // Failed to read list element
@@ -101,8 +124,11 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
   }
 
   if (delta == 0) {
-    field->field_id = reader->data[reader->position] |
-                      (reader->data[reader->position + 1] << 8);
+    if (reader->position + 1 >= reader->size) return -1;  // Out of bounds
+    // field->field_id = reader->data[reader->position] |
+    //                   (reader->data[reader->position + 1] << 8);
+    field->field_id = (reader->data[reader->position] << 8) |
+                      reader->data[reader->position + 1];
     reader->position += 2;
   } else {
     field->field_id = *last_field_id + delta;
@@ -129,12 +155,25 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
         free(field->value);
         return -1;  // Failed to read I32 value
       }
+      //   printf("I32 value: %d, field_id: %d, type: %d\n",
+      //   field->value->i32_val,
+      //          field->field_id, field->type);
+      break;
+    case COMPACT_TYPE_STRING:
+      if (thrift_read_string(reader, &field->value->binary) != 0) {
+        free(field->value);
+        return -1;  // Failed to read string value
+      }
+      //   printf("String value: '%s', field_id: %d, type: %d\n",
+      //          field->value->binary.data, field->field_id, field->type);
       break;
     case COMPACT_TYPE_LIST:
       if (thrift_read_list(reader, &field->value->list) != 0) {
         free(field->value);
         return -1;  // Failed to read list
       }
+      //   printf("List with %u elements, field_id: %d, type: %d\n",
+      //          field->value->list.count, field->field_id, field->type);
       break;
     default:
       break;
