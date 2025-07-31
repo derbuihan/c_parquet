@@ -82,30 +82,29 @@ int thrift_read_string(thrift_reader_t* reader, thrift_binary_t* binary) {
   return 0;  // Successfully read string
 }
 
-int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list) {
+int thrift_read_list(thrift_reader_t* reader, thrift_list_t* list_val) {
   if (reader->position >= reader->size) return -1;  // Out of bounds
 
   uint8_t first_byte = reader->data[reader->position++];
-  list->type = first_byte & 0x0F;
+  list_val->type = first_byte & 0x0F;
   uint8_t size_part = (first_byte & 0xF0) >> 4;
   if (size_part < 15) {
-    list->count = size_part;
+    list_val->count = size_part;
   } else {
-    if (thrift_read_varint32(reader, &list->count) != 0)
+    if (thrift_read_varint32(reader, &list_val->count) != 0)
       return -1;  // Failed to read size
   }
 
-  list->elements = malloc(list->count * sizeof(thrift_data_t));
-  if (!list->elements) return -1;  // Memory allocation failed
+  list_val->elements = malloc(list_val->count * sizeof(thrift_data_t));
+  if (!list_val->elements) return -1;  // Memory allocation failed
 
-  int16_t last_field_id = 0;
-  for (uint32_t i = 0; i < list->count; i++) {
+  for (uint32_t i = 0; i < list_val->count; i++) {
     thrift_field_t field;
-    if (thrift_read_field(reader, &field, &last_field_id) != 0) {
-      free(list->elements);
+    if (thrift_read_field(reader, &field) != 0) {
+      free(list_val->elements);
       return -1;  // Failed to read list element
     }
-    list->elements[i] = *field.value;  // Copy the value
+    list_val->elements[i] = field.value;
   }
   return 0;  // Successfully read list
 }
@@ -141,11 +140,8 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
   return 0;
 }
 
-int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
-                      int16_t* last_field_id) {
-  if (thrift_read_field_header(reader, field, last_field_id) != 0) {
-    return -1;  // Failed to read field header
-  }
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
+  if (reader->position >= reader->size) return -1;  // Out of bounds
   field->value = malloc(sizeof(thrift_data_t));
   if (!field->value) return -1;  // Memory allocation failed
 
@@ -155,25 +151,24 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
         free(field->value);
         return -1;  // Failed to read I32 value
       }
-      //   printf("I32 value: %d, field_id: %d, type: %d\n",
-      //   field->value->i32_val,
-      //          field->field_id, field->type);
+      printf("I32 value: %d, field_id: %d, type: %d\n", field->value->i32_val,
+             field->field_id, field->type);
       break;
     case COMPACT_TYPE_STRING:
-      if (thrift_read_string(reader, &field->value->binary) != 0) {
+      if (thrift_read_string(reader, &field->value->binary_val) != 0) {
         free(field->value);
         return -1;  // Failed to read string value
       }
-      //   printf("String value: '%s', field_id: %d, type: %d\n",
-      //          field->value->binary.data, field->field_id, field->type);
+      printf("String value: '%s', field_id: %d, type: %d\n",
+             field->value->binary_val.data, field->field_id, field->type);
       break;
     case COMPACT_TYPE_LIST:
-      if (thrift_read_list(reader, &field->value->list) != 0) {
+      if (thrift_read_list(reader, &field->value->list_val) != 0) {
         free(field->value);
         return -1;  // Failed to read list
       }
-      //   printf("List with %u elements, field_id: %d, type: %d\n",
-      //          field->value->list.count, field->field_id, field->type);
+      printf("List with %u elements, field_id: %d, type: %d\n",
+             field->value->list_val.count, field->field_id, field->type);
       break;
     default:
       break;
@@ -184,21 +179,53 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field,
 
 int thrift_read_root(thrift_reader_t* reader, thrift_struct_t* root) {
   root->field_count = 0;
-  root->fields = malloc(10 * sizeof(thrift_field_t));  // Initial capacity
-  if (!root->fields) return -1;  // Memory allocation failed
+  root->fields = malloc(10 * sizeof(thrift_field_t*));  // Initial capacity
+  root->fields[0] = malloc(sizeof(thrift_field_t));
+
   int16_t last_field_id = 0;
-  thrift_field_t field;
-  while (thrift_read_field(reader, &field, &last_field_id) == 0 &&
-         field.type != COMPACT_TYPE_STOP) {
+  while (thrift_read_field_header(reader, root->fields[root->field_count],
+                                  &last_field_id) == 0 &&
+         root->fields[root->field_count]->type != COMPACT_TYPE_STOP) {
+    if (thrift_read_field(reader, root->fields[root->field_count]) != 0) {
+      free(root->fields);
+      return -1;  // Failed to read field
+    }
+    root->field_count++;
     if (root->field_count >= 10) {  // Resize if needed
-      root->fields = realloc(root->fields,
-                             (root->field_count + 10) * sizeof(thrift_field_t));
+      root->fields = realloc(
+          root->fields, (root->field_count + 10) * sizeof(thrift_field_t*));
       if (!root->fields) return -1;  // Memory allocation failed
     }
-    root->fields[root->field_count++] = field;
+    root->fields[root->field_count] = malloc(sizeof(thrift_field_t));
   }
-
   return 0;  // Successfully read root struct
+}
+
+void thrift_print_root(const thrift_struct_t* root) {
+  if (!root) return;
+
+  printf("Thrift Root Struct:\n");
+  for (size_t i = 0; i < root->field_count; i++) {
+    const thrift_field_t* field = root->fields[i];
+    switch (field->type) {
+      case COMPACT_TYPE_I32:
+        printf("  Field ID: %d, Type: %d, Value: %d\n", field->field_id,
+               field->type, field->value->i32_val);
+        break;
+      case COMPACT_TYPE_STRING:
+        printf("  Field ID: %d, Type: %d, Value: '%s'\n", field->field_id,
+               field->type, field->value->binary_val.data);
+        break;
+      case COMPACT_TYPE_LIST:
+        printf("  Field ID: %d, Type: %d, List with %u elements\n",
+               field->field_id, field->type, field->value->list_val.count);
+        break;
+      default:
+        printf("  Field ID: %d, Type: %d, Value type not handled\n",
+               field->field_id, field->type);
+        break;
+    }
+  }
 }
 
 /*

@@ -25,15 +25,15 @@ typedef union thrift_data thrift_data_t;
 
 typedef struct
 {
-    uint32_t len;
+    size_t len;
     uint8_t* data;
 } thrift_binary_t;
 
 typedef struct
 {
     compact_type_t type;
-    uint32_t count;
-    thrift_data_t* elements;
+    size_t count;
+    thrift_data_t** elements;
 } thrift_list_t;
 
 typedef struct
@@ -45,8 +45,8 @@ typedef struct
 
 typedef struct
 {
-    uint32_t field_count;
-    thrift_field_t* fields;
+    size_t field_count;
+    thrift_field_t** fields;
 } thrift_struct_t;
 
 union thrift_data
@@ -57,8 +57,8 @@ union thrift_data
     int32_t i32_val; // I32
     int64_t i64_val; // I64
     double double_val; // DOUBLE
-    thrift_binary_t binary; // STRING
-    thrift_list_t list; // LIST/SET
+    thrift_binary_t binary_val; // STRING
+    thrift_list_t list_val; // LIST/SET
     thrift_struct_t struct_val; // STRUCT
 };
 
@@ -77,9 +77,10 @@ int thrift_read_zigzag32(thrift_reader_t* reader, int32_t* value);
 int thrift_read_varint64(thrift_reader_t* reader, uint64_t* value);
 int thrift_read_zigzag64(thrift_reader_t* reader, int64_t* value);
 
-int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field , 
-                      int16_t* last_field_id);
+int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field);
 int thrift_read_root(thrift_reader_t* reader, thrift_struct_t* root);
+
+void thrift_print_root(const thrift_struct_t* root);
 
 // int thrift_read_value(thrift_reader_t* reader, thrift_value_t* value);
 // int thrift_read_struct(thrift_reader_t* reader, thrift_struct_t* struct_val);

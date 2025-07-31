@@ -1,10 +1,6 @@
 #include "parquet.h"
 
-int main(void) {
-  // Initialize command line arguments
-  int argc = 2;
-  char* argv[] = {"c_parquet", "../examples/simple.parquet"};
-
+int main(int argc, char* argv[]) {
   printf("C Parquet Reader v0.1\n");
   if (argc != 2) {
     printf("Usage: %s <parquet_file>\n", argv[0]);
