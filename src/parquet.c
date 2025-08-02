@@ -79,7 +79,7 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
   }
 
   thrift_struct_t* root = malloc(sizeof(thrift_struct_t));
-  if (thrift_read_root(thrift_reader, root) != 0) {
+  if (thrift_read_struct(thrift_reader, root) != 0) {
     free(metadata);
     thrift_reader_free(thrift_reader);
     return NULL;  // Failed to read root struct
