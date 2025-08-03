@@ -68,7 +68,21 @@ thrift_reader_t* parquet_read_footer(parquet_reader_t* reader) {
   return thrift_reader;
 }
 
-parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
+int parquet_struct_read_metadata(thrift_struct_t* struct_val,
+                                 parquet_file_metadata_t* metadata) {
+  if (!struct_val || !metadata) return -1;  // Invalid input
+
+  if (thrift_struct_get_i32(struct_val, 1, &metadata->version) != 0) return -1;
+  if (thrift_struct_get_i64(struct_val, 3, &metadata->num_rows) != 0) return -1;
+  if (thrift_struct_get_string(struct_val, 6, &metadata->created_by) != 0)
+    return -1;
+  metadata->schema_count = 0;
+  metadata->schema = NULL;
+
+  return 0;
+}
+
+parquet_file_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
   thrift_reader_t* thrift_reader = parquet_read_footer(reader);
   if (!thrift_reader) return NULL;  // Failed to read footer
 
@@ -79,21 +93,23 @@ parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader) {
   }
   thrift_print_root(root);
 
-  parquet_metadata_t* metadata = malloc(sizeof(parquet_metadata_t));
+  parquet_file_metadata_t* metadata = malloc(sizeof(parquet_file_metadata_t));
   if (!metadata) {
     free(thrift_reader);
     return NULL;  // Memory allocation failed
   }
 
-  metadata->version = root->fields[0]->value->i32_val;
-  metadata->num_rows = root->fields[2]->value->i64_val;
-  metadata->created_by = root->fields[5]->value->binary_val.data;
+  if (parquet_struct_read_metadata(root, metadata) != 0) {
+    free(metadata);
+    free(thrift_reader);
+    return NULL;  // Failed to read metadata
+  }
 
   thrift_reader_free(thrift_reader);
   return metadata;
 }
 
-void print_metadata(const parquet_metadata_t* metadata) {
+void print_metadata(const parquet_file_metadata_t* metadata) {
   if (!metadata) return;
 
   printf("Parquet Metadata:\n");

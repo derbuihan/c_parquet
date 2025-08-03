@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include "thrift.h"
 
 #define PARQUET_MAGIC "PAR1"
 #define PARQUET_MAGIC_SIZE 4
@@ -16,21 +17,21 @@ typedef struct {
 typedef struct {
   // 4: required string name;
   char* name;
-} schema_element_t;
+} parquet_schema_element_t;
 
-typedef struct {} column_chunk_t;
+typedef struct {} parquet_column_chunk_t;
 
 typedef struct {
   // 1: required list<ColumnChunk> columns
   size_t column_count;
-  column_chunk_t** columns;
+  parquet_column_chunk_t** columns;
 
   // 2: required i64 total_byte_size
   int64_t total_byte_size;
 
   // 3: required i64 num_rows
   int64_t num_rows;
-} row_group_t;
+} parquet_row_group_t;
 
 typedef struct {
   // 1: required string key
@@ -38,7 +39,7 @@ typedef struct {
 
   // 2: optional string value
   char* value;
-} key_value_t;
+} parquet_key_value_t;
 
 typedef struct {
   // 1: required i32 version
@@ -46,26 +47,30 @@ typedef struct {
 
   // 2: required list<SchemaElement> schema;
   size_t schema_count;
-  schema_element_t** schema;
+  parquet_schema_element_t** schema;
 
   // 3: required i64 num_rows
   int64_t num_rows;
 
   // 4: required list<RowGroup> row_groups
   size_t row_group_count;
-  row_group_t** row_groups; // Assuming row_group_t is defined elsewhere
+  parquet_row_group_t** row_groups; // Assuming row_group_t is defined elsewhere
 
   // 5: optional list<KeyValue> key_value_metadata
   size_t key_value_metadata_count;
-  key_value_t** key_value_metadata;
+  parquet_key_value_t** key_value_metadata;
 
   // 6: optional string created_by
   char* created_by;
-} parquet_metadata_t;
+} parquet_file_metadata_t;
 
 parquet_reader_t* parquet_open(const char* filename);
 int parquet_close(parquet_reader_t* reader);
-parquet_metadata_t* parquet_read_metadata(parquet_reader_t* reader);
-void print_metadata(const parquet_metadata_t* metadata);
+
+int parquet_struct_read_metadata(thrift_struct_t* struct_val,
+                          parquet_file_metadata_t* metadata);
+parquet_file_metadata_t* parquet_read_metadata(parquet_reader_t* reader);                          
+
+void print_metadata(const parquet_file_metadata_t* metadata);
 
 #endif  // C_PARQUET_PARQUET_H

@@ -214,14 +214,39 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
   return 0;
 }
 
-thrift_data_t* thrift_get_field_value(thrift_struct_t* struct_val,
-                                      uint16_t field_id) {
+int thrift_struct_get_i32(thrift_struct_t* struct_val, uint16_t field_id,
+                          int32_t* value) {
   for (size_t i = 0; i < struct_val->field_count; i++) {
-    if (struct_val->fields[i]->field_id == field_id) {
-      return struct_val->fields[i]->value;
+    if (struct_val->fields[i]->field_id == field_id &&
+        struct_val->fields[i]->type == COMPACT_TYPE_I32) {
+      *value = struct_val->fields[i]->value->i32_val;
+      return 0;
     }
   }
-  return NULL;  // Field not found
+  return -1;
+}
+
+int thrift_struct_get_i64(thrift_struct_t* struct_val, uint16_t field_id,
+                          int64_t* value) {
+  for (size_t i = 0; i < struct_val->field_count; i++) {
+    if (struct_val->fields[i]->field_id == field_id &&
+        struct_val->fields[i]->type == COMPACT_TYPE_I64) {
+      *value = struct_val->fields[i]->value->i64_val;
+      return 0;
+    }
+  }
+  return -1;
+}
+int thrift_struct_get_string(thrift_struct_t* struct_val, uint16_t field_id,
+                             char** value) {
+  for (size_t i = 0; i < struct_val->field_count; i++) {
+    if (struct_val->fields[i]->field_id == field_id &&
+        struct_val->fields[i]->type == COMPACT_TYPE_STRING) {
+      *value = (char*)struct_val->fields[i]->value->binary_val.data;
+      return 0;
+    }
+  }
+  return -1;
 }
 
 void thrift_print_struct(const thrift_struct_t* struct_val, int indent) {

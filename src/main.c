@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
   printf("Parquet file '%s' opened successfully.\n", argv[1]);
 
   // Read the metadata
-  parquet_metadata_t* metadata = parquet_read_metadata(reader);
+  parquet_file_metadata_t* metadata = parquet_read_metadata(reader);
   if (!metadata) {
     printf("Error: Could not read metadata from Parquet file '%s'.\n", argv[1]);
     parquet_close(reader);
