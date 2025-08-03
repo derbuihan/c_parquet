@@ -164,9 +164,6 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
   }
 
   *last_field_id = field->field_id;
-
-  printf("Field ID: %d, Type: %d\n", field->field_id, field->type);
-
   return 0;
 }
 
@@ -183,80 +180,91 @@ int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field) {
         free(field->value);
         return -1;  // Failed to read I32 value
       }
-      printf("I32 value: %d, field_id: %d, type: %d\n", field->value->i32_val,
-             field->field_id, field->type);
       break;
     case COMPACT_TYPE_I64:
       if (thrift_read_zigzag64(reader, &field->value->i64_val) != 0) {
         free(field->value);
         return -1;  // Failed to read I64 value
       }
-      printf("I64 value: %lld, field_id: %d, type: %d\n", field->value->i64_val,
-             field->field_id, field->type);
       break;
     case COMPACT_TYPE_STRING:
       if (thrift_read_string(reader, &field->value->binary_val) != 0) {
         free(field->value);
         return -1;  // Failed to read string value
       }
-      printf("String value: '%s', field_id: %d, type: %d\n",
-             field->value->binary_val.data, field->field_id, field->type);
       break;
     case COMPACT_TYPE_LIST:
       if (thrift_read_list(reader, &field->value->list_val) != 0) {
         free(field->value);
         return -1;  // Failed to read list
       }
-      printf("List with %u elements, field_id: %d, type: %d\n",
-             field->value->list_val.count, field->field_id, field->type);
       break;
     case COMPACT_TYPE_STRUCT:
       if (thrift_read_struct(reader, &field->value->struct_val) != 0) {
         free(field->value);
         return -1;  // Failed to read struct
       }
-      printf("Reading struct, field_id: %d, type: %d\n", field->field_id,
-             field->type);
       break;
     default:
       printf("Unknown type %d at position %zu, field_id: %d, skipping 1 byte\n",
              field->type, reader->position, field->field_id);
-
-      break;
+      return -1;  // Unknown type, skip 1 byte
   }
 
   return 0;
 }
 
-void thrift_print_root(const thrift_struct_t* root) {
-  if (!root) return;
+thrift_data_t* thrift_get_field_value(thrift_struct_t* struct_val,
+                                      uint16_t field_id) {
+  for (size_t i = 0; i < struct_val->field_count; i++) {
+    if (struct_val->fields[i]->field_id == field_id) {
+      return struct_val->fields[i]->value;
+    }
+  }
+  return NULL;  // Field not found
+}
 
-  printf("Thrift Root Struct:\n");
-  for (size_t i = 0; i < root->field_count; i++) {
-    const thrift_field_t* field = root->fields[i];
+void thrift_print_struct(const thrift_struct_t* struct_val, int indent) {
+  if (!struct_val) return;
+  for (int i = 0; i < indent; i++) printf("  ");
+  printf("Thrift Struct with %u fields:\n", struct_val->field_count);
+
+  for (size_t i = 0; i < struct_val->field_count; i++) {
+    const thrift_field_t* field = struct_val->fields[i];
+    for (int j = 0; j < indent; j++) printf("  ");
+    printf("Field ID: %d, Type: %d, ", field->field_id, field->type);
     switch (field->type) {
       case COMPACT_TYPE_I32:
-        printf("  Field ID: %d, Type: %d, Value: %d\n", field->field_id,
-               field->type, field->value->i32_val);
+        printf("Value: %d\n", field->value->i32_val);
+        break;
+      case COMPACT_TYPE_I64:
+        printf("Value: %lld\n", field->value->i64_val);
         break;
       case COMPACT_TYPE_STRING:
-        printf("  Field ID: %d, Type: %d, Value: '%s'\n", field->field_id,
-               field->type, field->value->binary_val.data);
+        printf("Value: '%s'\n", field->value->binary_val.data);
         break;
       case COMPACT_TYPE_LIST:
-        printf("  Field ID: %d, Type: %d, List with %u elements of type %d\n",
-               field->field_id, field->type, field->value->list_val.count,
-               field->value->list_val.type);
+        printf("List with %u elements of type %d\n",
+               field->value->list_val.count, field->value->list_val.type);
+        for (uint32_t j = 0; j < field->value->list_val.count; j++) {
+          if (field->value->list_val.type == COMPACT_TYPE_STRUCT)
+            thrift_print_struct(&field->value->list_val.elements[j]->struct_val,
+                                indent + 1);
+        }
         break;
       case COMPACT_TYPE_STRUCT:
-        printf("  Field ID: %d, Type: %d, Struct with %u fields\n",
-               field->field_id, field->type,
-               field->value->struct_val.field_count);
+        printf("Struct with %u fields\n", field->value->struct_val.field_count);
+        thrift_print_struct(&field->value->struct_val, indent + 1);
         break;
       default:
-        printf("  Field ID: %d, Type: %d, Value type not handled\n",
-               field->field_id, field->type);
+        printf("Unknown type\n");
         break;
     }
   }
+}
+
+void thrift_print_root(const thrift_struct_t* root) {
+  if (!root) return;
+  printf("Thrift Root Struct:\n");
+  thrift_print_struct(root, 1);
 }
