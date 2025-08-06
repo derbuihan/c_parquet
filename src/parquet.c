@@ -68,11 +68,27 @@ thrift_reader_t* parquet_read_footer(parquet_reader_t* reader) {
   return thrift_reader;
 }
 
+int parquet_struct_read_schema(thrift_struct_t* struct_val, uint16_t field_id,
+                               size_t* schema_count,
+                               parquet_schema_element_t** schema) {
+  if (!struct_val || !schema) return -1;  // Invalid input
+
+  thrift_list_t* list_val = malloc(sizeof(thrift_list_t));
+  if (thrift_struct_get_list(struct_val, field_id, list_val) != 0)
+    return -1;  // Failed to read schema list
+
+  return 0;
+}
+
 int parquet_struct_read_metadata(thrift_struct_t* struct_val,
                                  parquet_file_metadata_t* metadata) {
   if (!struct_val || !metadata) return -1;  // Invalid input
 
   if (thrift_struct_get_i32(struct_val, 1, &metadata->version) != 0) return -1;
+  if (parquet_struct_read_schema(struct_val, 2, &metadata->schema_count,
+                                 metadata->schema) != 0)
+    return -1;  // Failed to read schema
+
   if (thrift_struct_get_i64(struct_val, 3, &metadata->num_rows) != 0) return -1;
   if (thrift_struct_get_string(struct_val, 6, &metadata->created_by) != 0)
     return -1;

@@ -1,8 +1,10 @@
 #ifndef C_PARQUET_PARQUET_H
 #define C_PARQUET_PARQUET_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+
 #include "thrift.h"
 
 #define PARQUET_MAGIC "PAR1"
@@ -19,7 +21,8 @@ typedef struct {
   char* name;
 } parquet_schema_element_t;
 
-typedef struct {} parquet_column_chunk_t;
+typedef struct {
+} parquet_column_chunk_t;
 
 typedef struct {
   // 1: required list<ColumnChunk> columns
@@ -54,7 +57,7 @@ typedef struct {
 
   // 4: required list<RowGroup> row_groups
   size_t row_group_count;
-  parquet_row_group_t** row_groups; // Assuming row_group_t is defined elsewhere
+  parquet_row_group_t** row_groups;
 
   // 5: optional list<KeyValue> key_value_metadata
   size_t key_value_metadata_count;
@@ -67,9 +70,12 @@ typedef struct {
 parquet_reader_t* parquet_open(const char* filename);
 int parquet_close(parquet_reader_t* reader);
 
+int parquet_struct_read_schema(thrift_struct_t* struct_val, uint16_t field_id,
+                               size_t* schema_count,
+                               parquet_schema_element_t** schema);
 int parquet_struct_read_metadata(thrift_struct_t* struct_val,
-                          parquet_file_metadata_t* metadata);
-parquet_file_metadata_t* parquet_read_metadata(parquet_reader_t* reader);                          
+                                 parquet_file_metadata_t* metadata);
+parquet_file_metadata_t* parquet_read_metadata(parquet_reader_t* reader);
 
 void print_metadata(const parquet_file_metadata_t* metadata);
 

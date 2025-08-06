@@ -81,12 +81,16 @@ int thrift_read_field_header(thrift_reader_t* reader, thrift_field_t* field,
                              int16_t* last_field_id) ;
 int thrift_read_field(thrift_reader_t* reader, thrift_field_t* field);
 
+//int thrift_struct_get_va;
+
 int thrift_struct_get_i32(thrift_struct_t* struct_val, uint16_t field_id,
                              int32_t* value);
 int thrift_struct_get_i64(thrift_struct_t* struct_val, uint16_t field_id,
                              int64_t* value);
 int thrift_struct_get_string(thrift_struct_t* struct_val, uint16_t field_id,
                              char** value);
+int thrift_struct_get_list(thrift_struct_t* struct_val, uint16_t field_id,
+                             thrift_list_t* list);
 
 void thrift_print_root(const thrift_struct_t* root);
 

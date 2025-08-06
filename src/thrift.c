@@ -249,6 +249,18 @@ int thrift_struct_get_string(thrift_struct_t* struct_val, uint16_t field_id,
   return -1;
 }
 
+int thrift_struct_get_list(thrift_struct_t* struct_val, uint16_t field_id,
+                           thrift_list_t* list) {
+  for (size_t i = 0; i < struct_val->field_count; i++) {
+    if (struct_val->fields[i]->field_id == field_id &&
+        struct_val->fields[i]->type == COMPACT_TYPE_LIST) {
+      *list = struct_val->fields[i]->value->list_val;
+      return 0;
+    }
+  }
+  return -1;
+}
+
 void thrift_print_struct(const thrift_struct_t* struct_val, int indent) {
   if (!struct_val) return;
   for (int i = 0; i < indent; i++) printf("  ");
